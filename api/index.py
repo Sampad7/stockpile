@@ -1,6 +1,10 @@
 from flask import Flask, render_template, request, jsonify
 
-app = Flask(__name__)
+
+# Replace your Flask(__name__) line with this:
+app = Flask(__name__,
+            template_folder='../templates',
+            static_folder='../static')
 
 products = [
     {"name": "ATTA", "category": "GRAINS", "qty": 100, "price": 50},
