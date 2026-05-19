@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Owner - Store Inventory</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='invowner.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+</head>
+
+<body>
+  <!-- HEADER -->
+  <div class="header">
+    <h1>STOCKPILE</h1>
+  </div>
+
+  <!-- YELLOW HERO -->
+  <div class="yellow-rectangle">
+    <span class="stat-label">Total Products</span>
+    <span class="stat-value" id="stat-total">{{ stats.total }}</span>
+
+    <span class="stat-label2">In Stock</span>
+    <span class="stat-value2" id="stat-in">{{ stats.in_stock }}</span>
+
+    <span class="stat-label3">Out of Stock</span>
+    <span class="stat-value3" id="stat-out">{{ stats.out_stock }}</span>
+
+    <span class="stat-label4">Low Stock</span>
+    <span class="stat-value4" id="stat-low">{{ stats.low_stock }}</span>
+
+    <h2>DASHBOARD</h2>
+  </div>  <!-- FIX: removed extra stray </div> that was here -->
+
+  <div class="dot1"></div>
+  <div class="dot2"></div>
+
+  <!-- SEARCH BAR -->
+  <form action="/" method="GET" class="search-bar">
+    <input
+      id="search-input"
+      type="text"
+      placeholder="Search by name or category..."
+      name="q"
+      value="{{ q }}"
+      oninput="liveSearch()"
+      autocomplete="off"
+    />
+    <button type="submit">🔍</button>
+  </form>
+
+  <button class="btn-add" onclick="openAddForm()">+ Add New Product</button>
+
+  <!-- TABLE -->
+  <div class="table-wrapper">
+    <table class="inventory-table" border="0" cellpadding="8" cellspacing="0">
+      <thead>
+        <tr>
+          {% for header in headings %}
+            <th>{{ header }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in data %}
+        <tr>
+          <td>{{ row[0] }}</td>   <!-- # -->
+          <td>{{ row[1] }}</td>   <!-- NAME -->
+          <td>{{ row[2] }}</td>   <!-- CATEGORY -->
+          <td>{{ row[3] }}</td>   <!-- QUANTITY -->
+          <td>{{ row[4] }}</td>   <!-- STATUS -->
+          <td>
+            <!-- EDIT button -->   <!-- FIX: was missing -->
+            <button class="btn-icon"
+                    data-idx="{{ row[5] }}"
+                    onclick="openEditForm(this.dataset.idx)">✎</button>
+
+            <!-- DELETE button -->
+            <button class="btn-icon btn-del"
+                    data-idx="{{ row[5] }}"
+                    onclick="deleteProduct(this.dataset.idx)">🗑</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- OVERLAY -->
+  <div class="form-overlay" id="form-overlay" style="display:none" onclick="closeForm()"></div>
+
+  <!-- ADD / EDIT MODAL -->
+  <div class="product-form" id="product-form" style="display:none">
+    <h2 id="form-title">ADD PRODUCT</h2>   <!-- FIX: added id="form-title" -->
+
+    <div class="form-group">
+      <label>Name *</label>
+      <input type="text" id="f-name" />
+    </div>
+    <div class="form-group">
+      <label>Category *</label>
+      <input type="text" id="f-category" />
+    </div>
+    <div class="form-group">
+      <label>Quantity *</label>
+      <input type="number" id="f-qty" min="0" value="0" />
+    </div>
+    <div class="form-group">
+      <label>Price (Rs)</label>
+      <input type="number" id="f-price" min="0" value="0" />
+    </div>
+
+    <div class="form-buttons">
+      <button class="btn btn-save" id="save-btn" onclick="saveProduct()">Save</button>  <!-- FIX: added id="save-btn" -->
+      <button class="btn btn-cancel" onclick="closeForm()">Cancel</button>
+    </div>
+  </div>
+
+  <script>
+    // FIX: declare these at top so all functions can use them
+    let currentMode = 'add';
+    let editIdx     = null;
+
+    // ── OPEN ADD ────────────────────────────────────
+    function openAddForm() {
+      currentMode = 'add';
+      editIdx     = null;
+      document.getElementById('form-title').textContent = 'ADD PRODUCT';
+      document.getElementById('save-btn').textContent   = 'Save';
+      clearForm();
+      showModal();
+    }
+
+    // ── OPEN EDIT ───────────────────────────────────
+    async function openEditForm(idx) {
+      const res  = await fetch('/get/' + idx);
+      const data = await res.json();
+      if (!data.success) { alert('Product not found!'); return; }
+
+      currentMode = 'edit';
+      editIdx     = idx;
+      document.getElementById('form-title').textContent = 'EDIT PRODUCT';
+      document.getElementById('save-btn').textContent   = 'Update';
+      document.getElementById('f-name').value     = data.product.name;
+      document.getElementById('f-category').value = data.product.category;
+      document.getElementById('f-qty').value      = data.product.qty;
+      document.getElementById('f-price').value    = data.product.price;
+      showModal();
+    }
+
+    // ── SAVE (add or edit) ───────────────────────────
+    async function saveProduct() {
+      const name     = document.getElementById('f-name').value.trim();
+      const category = document.getElementById('f-category').value.trim();
+      const qty      = document.getElementById('f-qty').value;
+      const price    = document.getElementById('f-price').value;
+
+      if (!name) { alert('Name is required!'); return; }
+
+      const url = currentMode === 'edit' ? '/edit/' + editIdx : '/add';
+      const res = await fetch(url, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ name, category, qty, price })
+      });
+      const data = await res.json();
+      if (data.success) { closeForm(); location.reload(); }
+    }
+
+    // ── DELETE ──────────────────────────────────────
+    async function deleteProduct(idx) {
+      if (!confirm('Delete this product?')) return;
+      const res  = await fetch('/delete/' + idx, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) { location.reload(); }
+    }
+
+    // ── LIVE SEARCH ─────────────────────────────────
+    function liveSearch() {
+      clearTimeout(window._searchTimer);
+      window._searchTimer = setTimeout(() => {
+        // FIX: id was "owner-search" but JS looked for "search-input" — now both match
+        const q = document.getElementById('search-input').value;
+        window.location.href = '/?q=' + encodeURIComponent(q);
+      }, 300);
+    }
+
+    // ── REAL-TIME STATS ─────────────────────────────
+    function updateStockCounts() {
+      fetch('/api/stock-counts')
+        .then(r => r.json())
+        .then(data => {
+          document.getElementById('stat-total').innerText = data['stat-total'];
+          document.getElementById('stat-in').innerText    = data['stat-in'];
+          document.getElementById('stat-out').innerText   = data['stat-out'];
+          document.getElementById('stat-low').innerText   = data['stat-low'];
+        })
+        .catch(err => console.error('Stats fetch error:', err));
+    }
+    updateStockCounts();
+    setInterval(updateStockCounts, 5000);
+
+    // ── HELPERS ─────────────────────────────────────
+    function showModal() {
+      document.getElementById('form-overlay').style.display = '';
+      document.getElementById('product-form').style.display = '';
+    }
+    function closeForm() {
+      document.getElementById('form-overlay').style.display = 'none';
+      document.getElementById('product-form').style.display = 'none';
+    }
+    function clearForm() {
+      document.getElementById('f-name').value     = '';
+      document.getElementById('f-category').value = '';
+      document.getElementById('f-qty').value      = '0';
+      document.getElementById('f-price').value    = '0';
+    }
+  </script>
+</body>
+</html>
