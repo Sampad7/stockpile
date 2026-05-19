@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Owner - Store Inventory</title>
+ 
+   <link rel="stylesheet" href="{{ url_for('static', filename='invowner.css') }}">
+
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+</head>
+
+<body>
+    <div class="header">
+      <h1>STOCKPILE</h1>
+    </div>
+    <div class="yellow-rectangle">
+      <span class="stat-label">Total Products</span>
+        <span class="stat-value" id="stat-total">0</span>
+        <span class="stat-label2">In Stock</span>
+        <span class="stat-value2" id="stat-in">0</span>
+        <span class="stat-label3">Out of Stock</span>
+        <span class="stat-value3" id="stat-out">0</span>
+        <span class="stat-label4">Low Stock</span>
+        <span class="stat-value4" id="stat-low">0</span>
+      <h2>DASHBOARD</h2>
+
+    </div>
+    <div class="dot1">
+    </div>
+    </div>
+    <div class="dot2">
+    </div>
+    <form action="" class="search-bar">
+      <input id="owner-search" type="text" placeholder="Search by name, category, description, or local term" name="q" oninput="renderTable()" />
+      <button type="submit"><img src="static\search-left-1506-svgrepo-com.png" alt="search"></button>
+    </form>
+      <button class="btn-add" onclick="openAddForm()">+ Add New Product</button>
+      
+ <div class="table-wrapper">
+  <div class="table-scroll">
+    <table class="inventory-table" border="0" cellpadding="8" cellspacing="0">
+      <thead>
+        <tr>
+          {% for header in headings  %}
+            <th>{{ header }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in data %}
+        <tr>
+          {% for cell in row %}
+            <td>{{cell}}</td>
+          {% endfor %}
+          <td>
+            <button class="btn-icon btn-del"
+              data-idx="{{ row[5] }}"
+              onclick="deleteProduct(this.dataset.idx)">🗑</button>
+        
+          </td>
+        </tr>
+          
+      <!-- DELETE button -->
+      
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+    <!-- Overlay -->
+<div class="form-overlay" id="form-overlay" style="display:none" onclick="closeForm()"></div>
+
+<!-- Modal -->
+<div class="product-form" id="product-form" style="display:none">
+  <h2>ADD PRODUCT</h2>
+
+  <div class="form-group">
+    <label>Name *</label>
+    <input type="text" id="f-name" />
+  </div>
+  <div class="form-group">
+    <label>Category *</label>
+    <input type="text" id="f-category" />
+  </div>
+  <div class="form-group">
+    <label>Quantity *</label>
+    <input type="number" id="f-qty" min="0" value="0" />
+  </div>
+  <div class="form-group">
+    <label>Price (Rs)</label>
+    <input type="number" id="f-price" min="0" value="0" />
+  </div>
+
+  <div class="form-buttons">
+    <button class="btn btn-save"   onclick="saveProduct()">Save</button>
+    <button class="btn btn-cancel" onclick="closeForm()">Cancel</button>
+  </div>
+</div>
+
+<script>
+function openAddForm() {
+  document.getElementById('form-overlay').style.display = '';
+  document.getElementById('product-form').style.display = '';
+}
+
+function closeForm() {
+  document.getElementById('form-overlay').style.display = 'none';
+  document.getElementById('product-form').style.display = 'none';
+}
+
+function saveProduct() {
+  const name     = document.getElementById('f-name').value.trim();
+  const category = document.getElementById('f-category').value.trim();
+  const qty      = document.getElementById('f-qty').value;
+  const price    = document.getElementById('f-price').value;
+
+  if (!name) {
+    alert('Name is required!');
+    return;
+  }
+
+  // Send data to Flask using fetch
+  fetch('/add', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, category, qty, price })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.success) {
+      closeForm();
+      location.reload();   // refresh page to show new row
+    }
+  });
+}
+// ── DELETE ────────────────────────────────────────
+  async function deleteProduct(idx) {
+    if (!confirm('Delete this product?')) return;
+
+    const res  = await fetch('/delete/' + idx, { method: 'POST' });
+    const data = await res.json();
+
+    if (data.success) {
+      location.reload();
+    }
+  }
+  async function openEditForm(idx) {
+    const res  = await fetch('/get/' + idx);
+    const data = await res.json();
+
+    if (!data.success) { alert('Product not found!'); return; }
+
+    currentMode = 'edit';
+    editIdx     = idx;
+    document.getElementById('form-title').textContent = 'EDIT PRODUCT';
+    document.getElementById('save-btn').textContent   = 'Update';
+
+    // Pre-fill inputs with existing values
+    document.getElementById('f-name').value     = data.product.name;
+    document.getElementById('f-category').value = data.product.category;
+    document.getElementById('f-qty').value      = data.product.qty;
+    document.getElementById('f-price').value    = data.product.price;
+showModal();
+  }
+  function liveSearch() {
+    clearTimeout(window._searchTimer);
+    window._searchTimer = setTimeout(() => {
+      const q = document.getElementById('search-input').value;
+      window.location.href = '/?q=' + encodeURIComponent(q);
+    }, 300);  // waits 300ms after you stop typing
+  }
+ function updateStockCounts() {
+    // Fetch data from the Flask API route we created
+    fetch('/api/stock-counts')
+        .then(response => response.json())
+        .then(data => {
+            // Update the HTML text contents in real time
+            document.getElementById('stat-in').innerText = data['stat-in'];
+            document.getElementById('stat-out').innerText = data['stat-out'];
+        })
+        .catch(error => console.error('Error fetching real-time stock data:', error));
+}
+
+// Run the function immediately when the page loads
+updateStockCounts();
+
+// Refresh the counts automatically every 5 seconds (5000 milliseconds)
+setInterval(updateStockCounts, 5000);
+
+</script>
+</body>
+</html>
